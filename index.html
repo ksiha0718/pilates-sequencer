@@ -267,6 +267,36 @@
     color:var(--ink-soft);
   }
   .totalbar strong{color:var(--ink);}
+  .save-sequence-form{
+    margin-top:14px;
+    padding:14px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--bg);
+  }
+  .save-sequence-form label{margin-top:8px;}
+  .save-sequence-form label:first-child{margin-top:0;}
+  .save-sequence-form textarea{min-height:54px;}
+  .form-actions{
+    display:flex;
+    gap:8px;
+    justify-content:flex-end;
+    margin-top:10px;
+  }
+  .form-actions button.primary{
+    width:auto;
+    margin-top:0;
+    padding:8px 14px;
+    font-size:13px;
+  }
+  .saved-filter-bar{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .saved-filter-bar label{margin:0;}
+  .saved-filter-bar select{margin-top:4px; padding:7px 9px; font-size:13px;}
   .saved-sequence-item{
     border:1px solid var(--line);
     border-radius:8px;
@@ -304,6 +334,33 @@
     color:var(--ink-soft);
     font-size:12px;
   }
+  .saved-note{
+    margin:8px 0 10px;
+    padding:9px 10px;
+    border-radius:7px;
+    background:#fff;
+    color:var(--ink-soft);
+    font-size:12.5px;
+    white-space:pre-wrap;
+  }
+  .saved-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    padding-bottom:10px;
+    margin-bottom:4px;
+    border-bottom:1px solid var(--line);
+  }
+  .saved-meta-form{
+    padding:10px;
+    margin-bottom:10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:#fff;
+  }
+  .saved-meta-form label{margin-top:8px;}
+  .saved-meta-form label:first-child{margin-top:0;}
+  .saved-meta-form textarea{min-height:54px;}
   .saved-detail-phase{
     margin:10px 0 3px;
     color:var(--moss-dark);
@@ -402,6 +459,7 @@
     .add-form{grid-template-columns:1fr 1fr;}
     .add-form .wide{grid-column:1/-1;}
     .saved-detail-meta{flex-direction:column; gap:2px;}
+    .saved-filter-bar{grid-template-columns:1fr;}
   }
   @media print{
     header.top, nav.tabs, .no-print{display:none !important;}
@@ -523,10 +581,35 @@
             <button class="ghost" id="btnSaveSeq">이 시퀀스 저장</button>
             <button class="ghost" id="btnPrint">인쇄 / PDF</button>
           </div>
+          <div class="save-sequence-form no-print" id="saveSequenceForm" hidden>
+            <label for="sequenceTitle">수업명</label>
+            <input type="text" id="sequenceTitle" maxlength="80" placeholder="예: 지현님 하체 집중 수업">
+            <label for="sequenceNote">메모 <span style="font-weight:400;">(선택)</span></label>
+            <textarea id="sequenceNote" maxlength="500" placeholder="회원 컨디션, 다음 수업 참고사항 등을 적어두세요."></textarea>
+            <div class="form-actions">
+              <button class="ghost" type="button" id="btnCancelSaveSeq">취소</button>
+              <button class="primary" type="button" id="btnConfirmSaveSeq">저장 완료</button>
+            </div>
+          </div>
         </div>
 
         <div class="card no-print" id="savedBox">
           <h2>저장된 시퀀스 기록</h2>
+          <div class="saved-filter-bar">
+            <label>회원
+              <select id="savedProfileFilter"><option value="all">전체 회원</option></select>
+            </label>
+            <label>기구
+              <select id="savedEquipmentFilter">
+                <option value="all">전체 기구</option>
+                <option value="barrel">래더 바렐</option>
+                <option value="cadillac">캐딜락</option>
+                <option value="chair">체어</option>
+                <option value="reformer">리포머</option>
+                <option value="mat">매트</option>
+              </select>
+            </label>
+          </div>
           <div id="savedList" class="empty">저장된 시퀀스가 없어요</div>
         </div>
       </div>
@@ -691,6 +774,7 @@ let selectedProfileId = null;
 let currentSequence = [];
 let currentEquipment = 'chair';
 let openSavedSequenceId = null;
+let editingSavedMetaId = null;
 let editingExerciseId = null;
 
 function cloudPayload(){
@@ -1267,19 +1351,56 @@ function cloneSequenceItems(items){
   }));
 }
 
+function equipmentLabel(equipment){
+  return EXERCISE_DB[equipment] ? EXERCISE_DB[equipment].label : (equipment || '기구 미지정');
+}
+
+function defaultSequenceTitle(profile, equipment){
+  const member = profile ? profile.name : '회원 미지정';
+  return `${member} · ${equipmentLabel(equipment)} 수업`;
+}
+
+function createSequenceId(){
+  return `sq_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
 document.getElementById('btnSaveSeq').addEventListener('click', () => {
   if (!currentSequence.length){ alert('저장할 시퀀스가 없어요'); return; }
-  const profile = profiles.find(p => p.id === selectedProfileId);
+  const profile = profiles.find(item => item.id === selectedProfileId);
+  const form = document.getElementById('saveSequenceForm');
+  document.getElementById('sequenceTitle').value = defaultSequenceTitle(profile, currentEquipment);
+  document.getElementById('sequenceNote').value = '';
+  form.hidden = false;
+  document.getElementById('sequenceTitle').focus();
+});
+
+document.getElementById('btnCancelSaveSeq').addEventListener('click', () => {
+  document.getElementById('saveSequenceForm').hidden = true;
+});
+
+document.getElementById('btnConfirmSaveSeq').addEventListener('click', () => {
+  if (!currentSequence.length){ alert('저장할 시퀀스가 없어요'); return; }
+  const profile = profiles.find(item => item.id === selectedProfileId);
+  const id = createSequenceId();
+  const titleInput = document.getElementById('sequenceTitle');
+  const noteInput = document.getElementById('sequenceNote');
   savedSeqs.unshift({
-    id: 'sq_' + Date.now(),
-    date: new Date().toISOString(),
-    profileName: profile ? profile.name : '(미지정)',
-    equipment: currentEquipment,
-    items: cloneSequenceItems(currentSequence)
+    id,
+    date:new Date().toISOString(),
+    title:titleInput.value.trim() || defaultSequenceTitle(profile, currentEquipment),
+    note:noteInput.value.trim(),
+    profileId:profile ? profile.id : null,
+    profileName:profile ? profile.name : '(미지정)',
+    equipment:currentEquipment,
+    items:cloneSequenceItems(currentSequence)
   });
   save(LS_SAVED, savedSeqs);
+  openSavedSequenceId = id;
+  document.getElementById('savedProfileFilter').value = 'all';
+  document.getElementById('savedEquipmentFilter').value = 'all';
+  document.getElementById('saveSequenceForm').hidden = true;
   renderSavedList();
-  alert('저장했어요');
+  alert('시퀀스를 저장했어요');
 });
 
 function fmtDuration(sec){
@@ -1290,8 +1411,122 @@ function fmtDuration(sec){
   return minutes ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 }
 
+function savedSequenceTitle(sequence){
+  const title = String(sequence.title || '').trim();
+  return title || `${sequence.profileName || '(미지정)'} · ${equipmentLabel(sequence.equipment)} 수업`;
+}
+
+function savedProfileKey(sequence){
+  const matchedProfile = profiles.find(profile =>
+    profile.id === sequence.profileId || (!sequence.profileId && profile.name === sequence.profileName)
+  );
+  return matchedProfile ? `id:${matchedProfile.id}` : `name:${sequence.profileName || '(미지정)'}`;
+}
+
+function refreshSavedProfileFilter(){
+  const select = document.getElementById('savedProfileFilter');
+  const previous = select.value || 'all';
+  const options = new Map();
+  savedSeqs.forEach(sequence => {
+    const key = savedProfileKey(sequence);
+    if (!options.has(key)) options.set(key, sequence.profileName || '(미지정)');
+  });
+  select.innerHTML = '<option value="all">전체 회원</option>' +
+    Array.from(options.entries()).map(([key, label]) =>
+      `<option value="${escapeHtml(key)}">${escapeHtml(String(label))}</option>`
+    ).join('');
+  select.value = Array.from(select.options).some(option => option.value === previous) ? previous : 'all';
+}
+
+function getFilteredSavedSequences(){
+  const profileValue = document.getElementById('savedProfileFilter').value;
+  const equipmentValue = document.getElementById('savedEquipmentFilter').value;
+  return savedSeqs.filter(sequence =>
+    (profileValue === 'all' || savedProfileKey(sequence) === profileValue) &&
+    (equipmentValue === 'all' || sequence.equipment === equipmentValue)
+  );
+}
+
+function findSavedSequence(id){
+  return savedSeqs.find(sequence => String(sequence.id) === String(id));
+}
+
+function loadSavedSequence(id){
+  const sequence = findSavedSequence(id);
+  if (!sequence || !Array.isArray(sequence.items) || !sequence.items.length){
+    alert('불러올 동작 내용이 없어요');
+    return;
+  }
+  currentSequence = cloneSequenceItems(sequence.items);
+  if (EXERCISE_DB[sequence.equipment]){
+    currentEquipment = sequence.equipment;
+    document.getElementById('selEquipment').value = sequence.equipment;
+  }
+  const profile = profiles.find(item =>
+    item.id === sequence.profileId || (!sequence.profileId && item.name === sequence.profileName)
+  );
+  selectedProfileId = profile ? profile.id : null;
+  renderProfileSelect();
+  document.getElementById('selProfile').value = selectedProfileId || '';
+  const totalSeconds = currentSequence.reduce((sum, item) => sum + (Number(item.duration) || 0), 0);
+  document.getElementById('inpMinutes').value = Math.min(120, Math.max(10, Math.round(totalSeconds / 60)));
+  const cardio = currentSequence.find(item => item.phase === 'cardio');
+  if (cardio){
+    const cardioMinutes = String(Math.min(5, Math.max(3, Math.round((Number(cardio.duration) || 300) / 60))));
+    document.getElementById('inpCardioMinutes').value = cardioMinutes;
+  }
+  document.getElementById('saveSequenceForm').hidden = true;
+  refreshAddExerciseSelect();
+  renderSequence();
+  document.getElementById('seqContainer').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function duplicateSavedSequence(id){
+  const source = findSavedSequence(id);
+  if (!source) return;
+  const copyId = createSequenceId();
+  savedSeqs.unshift(Object.assign({}, source, {
+    id:copyId,
+    date:new Date().toISOString(),
+    title:`${savedSequenceTitle(source)} (복사본)`,
+    items:cloneSequenceItems(Array.isArray(source.items) ? source.items : [])
+  }));
+  save(LS_SAVED, savedSeqs);
+  openSavedSequenceId = copyId;
+  editingSavedMetaId = null;
+  renderSavedList();
+}
+
+function deleteSavedSequence(id){
+  const sequence = findSavedSequence(id);
+  if (!sequence || !confirm(`‘${savedSequenceTitle(sequence)}’ 기록을 삭제할까요?`)) return;
+  savedSeqs = savedSeqs.filter(item => String(item.id) !== String(id));
+  if (openSavedSequenceId === String(id)) openSavedSequenceId = null;
+  if (editingSavedMetaId === String(id)) editingSavedMetaId = null;
+  save(LS_SAVED, savedSeqs);
+  renderSavedList();
+}
+
+function saveSavedMetadata(id, container){
+  const sequence = findSavedSequence(id);
+  if (!sequence) return;
+  const title = container.querySelector('[data-saved-meta-field="title"]').value.trim();
+  if (!title){
+    alert('수업명을 입력해주세요');
+    container.querySelector('[data-saved-meta-field="title"]').focus();
+    return;
+  }
+  sequence.title = title;
+  sequence.note = container.querySelector('[data-saved-meta-field="note"]').value.trim();
+  save(LS_SAVED, savedSeqs);
+  editingSavedMetaId = null;
+  renderSavedList();
+}
+
 function renderSavedSequenceDetail(sequence){
   const items = Array.isArray(sequence.items) ? sequence.items : [];
+  const sequenceId = escapeHtml(String(sequence.id));
+  const isEditingMeta = editingSavedMetaId === String(sequence.id);
   let currentPhase = null;
   const rows = items.map((item, index) => {
     const phase = item.phase || 'main';
@@ -1315,10 +1550,27 @@ function renderSavedSequenceDetail(sequence){
     </div>`;
   }).join('');
   const total = items.reduce((sum, item) => sum + (Number(item.duration) || 0), 0);
-  return `<div class="saved-sequence-detail" id="saved-detail-${escapeHtml(String(sequence.id))}">
+  const metadata = isEditingMeta ? `<div class="saved-meta-form">
+    <label>수업명</label>
+    <input type="text" maxlength="80" value="${escapeHtml(savedSequenceTitle(sequence))}" data-saved-meta-field="title">
+    <label>메모</label>
+    <textarea maxlength="500" data-saved-meta-field="note">${escapeHtml(String(sequence.note || ''))}</textarea>
+    <div class="form-actions">
+      <button type="button" class="ghost" data-cancel-saved-meta="${sequenceId}">취소</button>
+      <button type="button" class="primary" data-save-saved-meta="${sequenceId}">저장</button>
+    </div>
+  </div>` : (sequence.note ? `<div class="saved-note">${escapeHtml(String(sequence.note))}</div>` : '');
+  return `<div class="saved-sequence-detail" id="saved-detail-${sequenceId}">
     <div class="saved-detail-meta">
       <span>총 ${items.length}개 동작</span>
       <strong>예상 소요시간 ${fmtDuration(total)}</strong>
+    </div>
+    ${metadata}
+    <div class="saved-actions">
+      <button type="button" class="small save" data-load-saved="${sequenceId}">현재 시퀀스로 불러오기</button>
+      <button type="button" class="small" data-edit-saved-meta="${sequenceId}">수업명·메모 수정</button>
+      <button type="button" class="small" data-duplicate-saved="${sequenceId}">복제</button>
+      <button type="button" class="small danger" data-delete-saved="${sequenceId}">삭제</button>
     </div>
     ${rows || '<div class="empty">저장된 동작 내용이 없어요.</div>'}
   </div>`;
@@ -1326,18 +1578,22 @@ function renderSavedSequenceDetail(sequence){
 
 function renderSavedList(){
   const box = document.getElementById('savedList');
+  refreshSavedProfileFilter();
   if (!savedSeqs.length){ box.innerHTML = '<div class="empty">저장된 시퀀스가 없어요</div>'; return; }
   if (openSavedSequenceId && !savedSeqs.some(sequence => String(sequence.id) === openSavedSequenceId)) openSavedSequenceId = null;
-  box.innerHTML = savedSeqs.slice(0, 15).map(s => {
+  const filteredSequences = getFilteredSavedSequences();
+  if (!filteredSequences.length){ box.innerHTML = '<div class="empty">조건에 맞는 저장 기록이 없어요</div>'; return; }
+  box.innerHTML = filteredSequences.map(s => {
     const d = new Date(s.date);
     const isOpen = String(s.id) === openSavedSequenceId;
-    const equipmentLabel = EXERCISE_DB[s.equipment] ? EXERCISE_DB[s.equipment].label : s.equipment;
+    const savedEquipmentLabel = equipmentLabel(s.equipment);
     const itemCount = Array.isArray(s.items) ? s.items.length : 0;
     return `<div class="saved-sequence-item">
       <button type="button" class="saved-sequence-summary" data-view-saved="${escapeHtml(String(s.id))}"
         aria-expanded="${isOpen}" aria-controls="saved-detail-${escapeHtml(String(s.id))}">
         <span>
-          <span class="saved-title">${escapeHtml(String(s.profileName || '(미지정)'))} · ${escapeHtml(String(equipmentLabel || '기구 미지정'))} · ${itemCount}개 동작</span>
+          <span class="saved-title">${escapeHtml(savedSequenceTitle(s))}</span>
+          <span class="saved-date">${escapeHtml(String(s.profileName || '(미지정)'))} · ${escapeHtml(String(savedEquipmentLabel))} · ${itemCount}개 동작</span>
           <span class="saved-date">${d.toLocaleDateString('ko-KR')} ${d.toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}</span>
         </span>
         <span class="saved-arrow" aria-hidden="true">${isOpen ? '⌃' : '⌄'}</span>
@@ -1348,11 +1604,40 @@ function renderSavedList(){
   box.querySelectorAll('[data-view-saved]').forEach(button => {
     button.addEventListener('click', () => {
       const id = button.dataset.viewSaved;
-      openSavedSequenceId = openSavedSequenceId === id ? null : id;
+      const isClosing = openSavedSequenceId === id;
+      openSavedSequenceId = isClosing ? null : id;
+      if (isClosing || editingSavedMetaId !== id) editingSavedMetaId = null;
       renderSavedList();
     });
   });
+  box.querySelectorAll('[data-load-saved]').forEach(button => {
+    button.addEventListener('click', () => loadSavedSequence(button.dataset.loadSaved));
+  });
+  box.querySelectorAll('[data-edit-saved-meta]').forEach(button => {
+    button.addEventListener('click', () => {
+      editingSavedMetaId = button.dataset.editSavedMeta;
+      renderSavedList();
+    });
+  });
+  box.querySelectorAll('[data-save-saved-meta]').forEach(button => {
+    button.addEventListener('click', () => saveSavedMetadata(button.dataset.saveSavedMeta, button.closest('.saved-meta-form')));
+  });
+  box.querySelectorAll('[data-cancel-saved-meta]').forEach(button => {
+    button.addEventListener('click', () => {
+      editingSavedMetaId = null;
+      renderSavedList();
+    });
+  });
+  box.querySelectorAll('[data-duplicate-saved]').forEach(button => {
+    button.addEventListener('click', () => duplicateSavedSequence(button.dataset.duplicateSaved));
+  });
+  box.querySelectorAll('[data-delete-saved]').forEach(button => {
+    button.addEventListener('click', () => deleteSavedSequence(button.dataset.deleteSaved));
+  });
 }
+
+document.getElementById('savedProfileFilter').addEventListener('change', renderSavedList);
+document.getElementById('savedEquipmentFilter').addEventListener('change', renderSavedList);
 
 /* ---------- edit db tab ---------- */
 document.getElementById('editEquipment').addEventListener('change', () => {
