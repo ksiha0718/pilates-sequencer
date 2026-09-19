@@ -47,6 +47,40 @@
     font-size:13px;
     color:var(--ink-soft);
   }
+  .header-side{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+    gap:7px;
+  }
+  .auth-controls{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:8px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+  .auth-controls img{
+    width:26px;
+    height:26px;
+    border-radius:50%;
+  }
+  .auth-gate{
+    max-width:460px;
+    margin:72px auto;
+    padding:28px;
+    text-align:center;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+  }
+  .auth-gate h2{margin:0 0 8px; font-size:19px;}
+  .auth-gate p{margin:0; color:var(--ink-soft); font-size:14px;}
+  .auth-gate button{margin-top:18px;}
+  body.signed-out nav.tabs,
+  body.signed-out main{display:none;}
+  body:not(.signed-out) .auth-gate{display:none;}
   nav.tabs{
     display:flex;
     gap:4px;
@@ -250,7 +284,7 @@
     border-bottom:1px solid var(--line);
     vertical-align:middle;
   }
-  table.editdb input[type=text], table.editdb input[type=number]{
+  table.editdb input[type=text], table.editdb input[type=number], table.editdb select{
     padding:5px 6px;
     font-size:12.5px;
   }
@@ -261,7 +295,12 @@
     gap:8px;
     margin-top:14px;
   }
-  .addbox select{flex:1;}
+  .addbox select, .addbox input{flex:1;}
+  .quick-add-hint{
+    margin-top:5px;
+    color:var(--ink-soft);
+    font-size:11.5px;
+  }
   .banner{
     background:var(--moss-tint);
     color:var(--moss-dark);
@@ -306,15 +345,29 @@
   }
 </style>
 </head>
-<body>
+<body class="signed-out">
 
 <header class="top">
   <div>
     <h1>필라테스 시퀀스 빌더</h1>
     <div class="sub">회원 프로필을 고르고 버튼 하나로 60분 수업 시퀀스를 만들어보세요</div>
   </div>
-  <div class="sub" id="dbInfo"></div>
+  <div class="header-side">
+    <div class="sub" id="dbInfo"></div>
+    <div class="auth-controls">
+      <span id="syncStatus">로그인이 필요해요</span>
+      <img id="userPhoto" alt="" style="display:none;">
+      <button class="ghost" id="btnLogin">Google 로그인</button>
+      <button class="ghost" id="btnLogout" style="display:none;">로그아웃</button>
+    </div>
+  </div>
 </header>
+
+<section class="auth-gate" id="authGate">
+  <h2>Google 계정으로 시작하기</h2>
+  <p>같은 계정으로 로그인하면 아이패드와 컴퓨터에서 회원·동작·시퀀스가 자동으로 동기화돼요.</p>
+  <button class="primary" id="btnGateLogin">Google 로그인</button>
+</section>
 
 <nav class="tabs">
   <button class="tab-btn active" data-tab="build">시퀀스 만들기</button>
@@ -380,8 +433,14 @@
 
           <div class="addbox no-print">
             <select id="selAddExercise"></select>
-            <button class="ghost" id="btnAddExercise">추가</button>
+            <button class="ghost" id="btnAddExercise">기존 동작 추가</button>
           </div>
+
+          <div class="addbox no-print">
+            <input type="text" id="quickExerciseName" placeholder="목록에 없는 동작명 입력">
+            <button class="ghost" id="btnQuickAddExercise">+ 새 동작 바로 추가</button>
+          </div>
+          <div class="quick-add-hint no-print">현재 기구·집중 부위·3분으로 저장돼요. 세부 내용은 ‘동작 데이터 편집’에서 나중에 수정할 수 있어요.</div>
 
           <div id="seqContainer" style="margin-top:14px;">
             <div class="empty">왼쪽에서 회원과 기구를 선택하고 "시퀀스 생성"을 눌러주세요.</div>
@@ -499,18 +558,64 @@
 </main>
 
 <script src="data.js"></script>
-<script>
+<script type="module">
+import { firebaseConfig } from './firebase-config.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signOut
+} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  onSnapshot,
+  serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+
+const EXERCISE_DB = window.EXERCISE_DB;
+
 /* ---------- storage helpers ---------- */
 const LS_PROFILES = 'pf_profiles_v1';
 const LS_OVERRIDES = 'pf_overrides_v1';
 const LS_SAVED = 'pf_saved_sequences_v1';
 const LS_CUSTOM = 'pf_custom_exercises_v1';
+const LS_OWNER_UID = 'pf_cloud_owner_uid_v1';
+const LS_CLIENT_ID = 'pf_client_id_v1';
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+const googleProvider = new GoogleAuthProvider();
+const CLIENT_ID = localStorage.getItem(LS_CLIENT_ID) || crypto.randomUUID();
+localStorage.setItem(LS_CLIENT_ID, CLIENT_ID);
+
+let currentUser = null;
+let cloudStateRef = null;
+let cloudReady = false;
+let cloudSaveTimer = null;
+let unsubscribeCloud = null;
 
 function load(key, fallback){
   try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
   catch(e){ return fallback; }
 }
-function save(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+function saveLocalOnly(key, val){
+  localStorage.setItem(key, JSON.stringify(val));
+}
+
+function save(key, val){
+  saveLocalOnly(key, val);
+  scheduleCloudSave();
+}
 
 let profiles = load(LS_PROFILES, []);
 let overrides = load(LS_OVERRIDES, {});
@@ -519,6 +624,161 @@ let customExercises = load(LS_CUSTOM, []);
 let selectedProfileId = null;
 let currentSequence = [];
 let currentEquipment = 'chair';
+
+function cloudPayload(){
+  return {
+    schemaVersion: 1,
+    profiles,
+    overrides,
+    savedSeqs,
+    customExercises,
+    updatedByClient: CLIENT_ID,
+    updatedAt: serverTimestamp()
+  };
+}
+
+function setSyncStatus(message, isError = false){
+  const status = document.getElementById('syncStatus');
+  status.textContent = message;
+  status.style.color = isError ? 'var(--clay)' : '';
+}
+
+function scheduleCloudSave(){
+  if (!cloudReady || !cloudStateRef || !currentUser) return;
+  clearTimeout(cloudSaveTimer);
+  setSyncStatus('저장 중…');
+  cloudSaveTimer = setTimeout(async () => {
+    try{
+      await setDoc(cloudStateRef, cloudPayload(), {merge:false});
+      setSyncStatus('동기화 완료');
+    }catch(error){
+      console.error('Cloud save failed', error);
+      setSyncStatus('동기화 실패 · 인터넷을 확인해주세요', true);
+    }
+  }, 250);
+}
+
+function persistCloudStateLocally(){
+  saveLocalOnly(LS_PROFILES, profiles);
+  saveLocalOnly(LS_OVERRIDES, overrides);
+  saveLocalOnly(LS_SAVED, savedSeqs);
+  saveLocalOnly(LS_CUSTOM, customExercises);
+}
+
+function applyCloudState(data){
+  profiles = Array.isArray(data.profiles) ? data.profiles : [];
+  overrides = data.overrides && typeof data.overrides === 'object' ? data.overrides : {};
+  savedSeqs = Array.isArray(data.savedSeqs) ? data.savedSeqs : [];
+  customExercises = Array.isArray(data.customExercises) ? data.customExercises : [];
+  persistCloudStateLocally();
+  renderProfileSelect();
+  renderProfileList();
+  fillProfileForm();
+  renderSavedList();
+  refreshAddExerciseSelect();
+  updateDbInfo();
+  if (document.getElementById('panel-edit').classList.contains('active')) renderEditTable();
+}
+
+function resetLocalState(){
+  profiles = [];
+  overrides = {};
+  savedSeqs = [];
+  customExercises = [];
+  selectedProfileId = null;
+  currentSequence = [];
+  persistCloudStateLocally();
+}
+
+async function startCloudSync(user){
+  cloudReady = false;
+  if (unsubscribeCloud) unsubscribeCloud();
+  setSyncStatus('데이터 불러오는 중…');
+  cloudStateRef = doc(db, 'users', user.uid, 'app', 'state');
+
+  const snapshot = await getDoc(cloudStateRef);
+  if (snapshot.exists()){
+    applyCloudState(snapshot.data());
+  }else{
+    // 기존 브라우저 데이터는 최초 로그인 계정에 한 번만 이전합니다.
+    const previousOwner = localStorage.getItem(LS_OWNER_UID);
+    if (previousOwner && previousOwner !== user.uid) resetLocalState();
+    await setDoc(cloudStateRef, cloudPayload(), {merge:false});
+  }
+
+  localStorage.setItem(LS_OWNER_UID, user.uid);
+  cloudReady = true;
+  setSyncStatus('동기화 완료');
+  unsubscribeCloud = onSnapshot(cloudStateRef, snapshot => {
+    if (!snapshot.exists()) return;
+    const data = snapshot.data();
+    // 현재 기기에서 방금 저장한 내용은 이미 화면에 반영되어 있습니다.
+    if (data.updatedByClient === CLIENT_ID) return;
+    applyCloudState(data);
+    setSyncStatus('다른 기기의 변경사항 반영 완료');
+  }, error => {
+    console.error('Realtime sync failed', error);
+    setSyncStatus('실시간 동기화 연결 실패', true);
+  });
+}
+
+function updateAuthUI(user){
+  const signedIn = !!user;
+  if (!signedIn) document.body.classList.add('signed-out');
+  document.getElementById('btnLogin').style.display = signedIn ? 'none' : '';
+  document.getElementById('btnLogout').style.display = signedIn ? '' : 'none';
+  const photo = document.getElementById('userPhoto');
+  if (signedIn && user.photoURL){
+    photo.src = user.photoURL;
+    photo.alt = user.displayName || '로그인 사용자';
+    photo.style.display = '';
+  }else{
+    photo.removeAttribute('src');
+    photo.style.display = 'none';
+  }
+}
+
+async function loginWithGoogle(){
+  try{
+    await setPersistence(auth, browserLocalPersistence);
+    googleProvider.setCustomParameters({prompt:'select_account'});
+    const isMobile = /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) await signInWithRedirect(auth, googleProvider);
+    else await signInWithPopup(auth, googleProvider);
+  }catch(error){
+    console.error('Google sign-in failed', error);
+    alert('Google 로그인에 실패했어요. Firebase의 Google 로그인 설정과 승인된 도메인을 확인해주세요.');
+  }
+}
+
+document.getElementById('btnLogin').addEventListener('click', loginWithGoogle);
+document.getElementById('btnGateLogin').addEventListener('click', loginWithGoogle);
+document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
+
+getRedirectResult(auth).catch(error => {
+  console.error('Google redirect result failed', error);
+  setSyncStatus('Google 로그인 처리 실패', true);
+});
+
+onAuthStateChanged(auth, async user => {
+  currentUser = user;
+  updateAuthUI(user);
+  if (!user){
+    cloudReady = false;
+    cloudStateRef = null;
+    if (unsubscribeCloud) unsubscribeCloud();
+    unsubscribeCloud = null;
+    setSyncStatus('로그인이 필요해요');
+    return;
+  }
+  try{
+    await startCloudSync(user);
+    document.body.classList.remove('signed-out');
+  }catch(error){
+    console.error('Cloud initialization failed', error);
+    setSyncStatus('데이터를 불러오지 못했어요', true);
+  }
+});
 
 /* ---------- exercise pool ---------- */
 function buildPool(equipKey){
@@ -694,6 +954,7 @@ function renderProfileSelect(){
   const sel = document.getElementById('selProfile');
   sel.innerHTML = '<option value="">(선택 안 함 — 제한 없이 생성)</option>' +
     profiles.map(p => `<option value="${p.id}">${escapeHtml(p.name)} (${levelLabel(p.level)})</option>`).join('');
+  if (selectedProfileId && profiles.some(p => p.id === selectedProfileId)) sel.value = selectedProfileId;
 }
 function levelLabel(l){
   return l === 'beginner' ? '초급' : l === 'advanced' ? '고급' : '중급';
@@ -889,6 +1150,40 @@ document.getElementById('btnAddExercise').addEventListener('click', () => {
   renderSequence();
 });
 
+function quickAddExercise(){
+  const input = document.getElementById('quickExerciseName');
+  const name = input.value.trim();
+  if (!name){ alert('추가할 동작명을 입력해주세요'); return; }
+
+  currentEquipment = document.getElementById('selEquipment').value;
+  const focus = document.getElementById('selMainFocus').value;
+  const exercise = {
+    id:'custom-' + Date.now(),
+    equipment:currentEquipment,
+    name,
+    category:'빠른 추가',
+    focus:[focus],
+    duration:180,
+    page:null,
+    variations:[],
+    custom:true
+  };
+
+  // 현재 시퀀스와 동작 DB에 동시에 추가하고, save()를 통해 Firestore에도 저장합니다.
+  customExercises.push(exercise);
+  currentSequence.push(Object.assign({}, exercise, {phase:'main'}));
+  save(LS_CUSTOM, customExercises);
+  input.value = '';
+  refreshAddExerciseSelect();
+  updateDbInfo();
+  renderSequence();
+}
+
+document.getElementById('btnQuickAddExercise').addEventListener('click', quickAddExercise);
+document.getElementById('quickExerciseName').addEventListener('keydown', event => {
+  if (event.key === 'Enter') quickAddExercise();
+});
+
 document.getElementById('btnPrint').addEventListener('click', () => window.print());
 
 document.getElementById('btnSaveSeq').addEventListener('click', () => {
@@ -946,18 +1241,32 @@ document.getElementById('btnCreateExercise').addEventListener('click', () => {
   updateDbInfo();
 });
 
+function focusLabel(value){
+  return ({hip:'힙', lower:'하체', upper:'상체', core:'코어', full:'전신'})[value] || value;
+}
+
+function customFocusSelect(exercise){
+  const current = (exercise.focus && exercise.focus[0]) || 'full';
+  return `<select data-custom-field="focus" style="width:76px;">
+    ${['hip','lower','upper','core','full'].map(value =>
+      `<option value="${value}" ${current === value ? 'selected' : ''}>${focusLabel(value)}</option>`
+    ).join('')}
+  </select>`;
+}
+
 function renderEditTable(){
   const equipKey = document.getElementById('editEquipment').value;
   const pool = buildPool(equipKey);
   const table = document.getElementById('editTable');
   table.innerHTML = `
     <tr>
-      <th>동작명</th><th>카테고리</th><th>p.</th><th>스프링</th><th>시간(초)</th><th>제외</th><th></th>
+      <th>동작명</th><th>카테고리</th><th>집중</th><th>p.</th><th>스프링</th><th>시간(초)</th><th>제외</th><th></th>
     </tr>` +
     pool.map(e => `
       <tr class="${e.excluded ? 'excluded' : ''}" data-id="${e.id}">
-        <td>${escapeHtml(e.name)}</td>
-        <td>${escapeHtml(e.category)}</td>
+        <td>${e.custom ? `<input type="text" value="${escapeHtml(e.name)}" data-custom-field="name" style="width:180px;">` : escapeHtml(e.name)}</td>
+        <td>${e.custom ? `<input type="text" value="${escapeHtml(e.category)}" data-custom-field="category" style="width:110px;">` : escapeHtml(e.category)}</td>
+        <td>${e.custom ? customFocusSelect(e) : focusTags(e).map(focusLabel).join(', ')}</td>
         <td>${e.page || '-'}</td>
         <td><input type="text" value="${escapeHtml(e.spring || '')}" data-field="spring" style="width:90px;"></td>
         <td><input type="number" value="${e.duration}" data-field="duration" style="width:70px;"></td>
@@ -973,6 +1282,18 @@ function renderEditTable(){
         overrides[id] = Object.assign({}, overrides[id], {[field]: val});
         save(LS_OVERRIDES, overrides);
         renderEditTable();
+      });
+    });
+    tr.querySelectorAll('[data-custom-field]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        const item = customExercises.find(exercise => exercise.id === id);
+        if (!item) return;
+        const field = inp.dataset.customField;
+        if (field === 'focus') item.focus = [inp.value];
+        else item[field] = inp.value.trim() || (field === 'category' ? '직접 추가' : item[field]);
+        save(LS_CUSTOM, customExercises);
+        renderEditTable();
+        refreshAddExerciseSelect();
       });
     });
     const deleteButton = tr.querySelector('[data-delete-custom]');

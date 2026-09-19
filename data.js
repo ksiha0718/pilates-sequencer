@@ -8,7 +8,9 @@
   주의: 손글씨 인식은 100% 정확하지 않을 수 있습니다. 앱의 "동작 편집"에서 언제든 수정하세요.
 */
 
-const EXERCISE_DB = {
+// Classic script로 먼저 로드한 뒤 ES module(index.html)에서도 접근할 수 있도록
+// 명시적으로 window에 공개합니다.
+window.EXERCISE_DB = {
   barrel: {
     label: "래더 바렐 (Ladder Barrel)",
     items: [
