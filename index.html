@@ -1,0 +1,1011 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>필라테스 시퀀스 빌더</title>
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:#F6F3EC;
+    --surface:#FFFFFF;
+    --ink:#211F1B;
+    --ink-soft:#6B665B;
+    --moss:#465742;
+    --moss-dark:#333F30;
+    --moss-tint:#DEE5D6;
+    --clay:#A15A42;
+    --clay-tint:#F1DED6;
+    --line:#E1D8C4;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  header.top{
+    padding:22px 24px 16px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  header.top h1{
+    font-size:20px;
+    margin:0;
+    font-weight:700;
+    letter-spacing:-0.01em;
+  }
+  header.top .sub{
+    font-size:13px;
+    color:var(--ink-soft);
+  }
+  nav.tabs{
+    display:flex;
+    gap:4px;
+    padding:10px 24px 0;
+  }
+  nav.tabs button{
+    border:none;
+    background:transparent;
+    padding:10px 14px;
+    font-size:14px;
+    font-weight:600;
+    color:var(--ink-soft);
+    cursor:pointer;
+    border-radius:8px 8px 0 0;
+    border-bottom:2px solid transparent;
+  }
+  nav.tabs button.active{
+    color:var(--moss-dark);
+    border-bottom:2px solid var(--moss);
+    background:var(--surface);
+  }
+  main{
+    max-width:1080px;
+    margin:0 auto;
+    padding:20px 24px 80px;
+  }
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .grid{
+    display:grid;
+    grid-template-columns: 320px 1fr;
+    gap:20px;
+    align-items:start;
+  }
+  @media (max-width:820px){
+    .grid{grid-template-columns:1fr;}
+  }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:18px;
+  }
+  .card + .card{margin-top:14px;}
+  .card h2{
+    font-size:15px;
+    margin:0 0 12px;
+    font-weight:700;
+  }
+  label{
+    display:block;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin:12px 0 4px;
+    font-weight:600;
+  }
+  label:first-of-type{margin-top:0;}
+  select, input[type=text], input[type=number], textarea{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:14px;
+    font-family:inherit;
+    background:#fff;
+    color:var(--ink);
+  }
+  textarea{resize:vertical; min-height:60px;}
+  .row2{display:flex; gap:10px;}
+  .row2 > *{flex:1;}
+  button.primary{
+    background:var(--moss);
+    color:#fff;
+    border:none;
+    padding:11px 16px;
+    border-radius:8px;
+    font-size:14px;
+    font-weight:700;
+    cursor:pointer;
+    width:100%;
+    margin-top:16px;
+  }
+  button.primary:hover{background:var(--moss-dark);}
+  button.ghost{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink);
+    padding:8px 12px;
+    border-radius:8px;
+    font-size:13px;
+    cursor:pointer;
+  }
+  button.ghost:hover{border-color:var(--moss);}
+  button.small{
+    padding:4px 8px;
+    font-size:12px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:#fff;
+    cursor:pointer;
+  }
+  button.small:hover{border-color:var(--moss);}
+  .profile-list{list-style:none; margin:0; padding:0;}
+  .profile-list li{
+    padding:9px 10px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:14px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .profile-list li:hover{background:var(--bg);}
+  .profile-list li.selected{background:var(--moss-tint); font-weight:700;}
+  .tag{
+    display:inline-block;
+    font-size:11.5px;
+    padding:2px 8px;
+    border-radius:999px;
+    background:var(--clay-tint);
+    color:var(--clay);
+    margin:2px 4px 0 0;
+  }
+  .tag.spring{background:var(--moss-tint); color:var(--moss-dark);}
+  .empty{
+    color:var(--ink-soft);
+    font-size:13.5px;
+    padding:20px 0;
+    text-align:center;
+  }
+  .seq-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .seq-header .meta{font-size:13px; color:var(--ink-soft);}
+  ol.sequence{
+    list-style:none;
+    margin:0;
+    padding:0;
+    counter-reset:step;
+  }
+  ol.sequence li{
+    counter-increment:step;
+    display:flex;
+    gap:12px;
+    padding:12px 4px;
+    border-bottom:1px solid var(--line);
+    align-items:flex-start;
+  }
+  ol.sequence li:last-child{border-bottom:none;}
+  ol.sequence li .num{
+    flex:0 0 26px;
+    height:26px;
+    border-radius:50%;
+    background:var(--moss);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:12.5px;
+    font-weight:700;
+    margin-top:2px;
+  }
+  ol.sequence li .body{flex:1; min-width:0;}
+  ol.sequence li .name{font-size:14.5px; font-weight:700;}
+  ol.sequence li .cat{font-size:12.5px; color:var(--ink-soft); margin-top:1px;}
+  ol.sequence li .var{font-size:12px; color:var(--ink-soft); margin-top:4px;}
+  ol.sequence li .ctrls{
+    flex:0 0 auto;
+    display:flex;
+    gap:4px;
+  }
+  .totalbar{
+    margin-top:16px;
+    padding-top:12px;
+    border-top:1px solid var(--line);
+    display:flex;
+    justify-content:space-between;
+    font-size:13.5px;
+    color:var(--ink-soft);
+  }
+  .totalbar strong{color:var(--ink);}
+  table.editdb{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  table.editdb th{
+    text-align:left;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    padding:6px 8px;
+    border-bottom:1px solid var(--line);
+  }
+  table.editdb td{
+    padding:6px 8px;
+    border-bottom:1px solid var(--line);
+    vertical-align:middle;
+  }
+  table.editdb input[type=text], table.editdb input[type=number]{
+    padding:5px 6px;
+    font-size:12.5px;
+  }
+  table.editdb tr.excluded td{opacity:.45;}
+  .hint{font-size:12px; color:var(--ink-soft); margin-top:8px;}
+  .addbox{
+    display:flex;
+    gap:8px;
+    margin-top:14px;
+  }
+  .addbox select{flex:1;}
+  .banner{
+    background:var(--moss-tint);
+    color:var(--moss-dark);
+    padding:10px 14px;
+    border-radius:8px;
+    font-size:13px;
+    margin-bottom:16px;
+  }
+  .phase-title{
+    margin:18px 0 2px;
+    padding:7px 10px;
+    border-radius:7px;
+    background:var(--moss-tint);
+    color:var(--moss-dark);
+    font-size:12.5px;
+    font-weight:700;
+  }
+  .phase-title:first-child{margin-top:0;}
+  .add-form{
+    display:grid;
+    grid-template-columns:2fr 1.3fr .8fr .8fr .8fr;
+    gap:8px;
+    align-items:end;
+    margin:12px 0 18px;
+    padding:14px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--bg);
+  }
+  .add-form label{margin:0 0 4px;}
+  .add-form button{height:39px;}
+  @media (max-width:820px){
+    .add-form{grid-template-columns:1fr 1fr;}
+    .add-form .wide{grid-column:1/-1;}
+  }
+  @media print{
+    header.top, nav.tabs, .no-print{display:none !important;}
+    body{background:#fff;}
+    main{padding:0;}
+    .card{border:none; padding:0;}
+    .grid{display:block;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <h1>필라테스 시퀀스 빌더</h1>
+    <div class="sub">회원 프로필을 고르고 버튼 하나로 60분 수업 시퀀스를 만들어보세요</div>
+  </div>
+  <div class="sub" id="dbInfo"></div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="build">시퀀스 만들기</button>
+  <button class="tab-btn" data-tab="members">회원 관리</button>
+  <button class="tab-btn" data-tab="edit">동작 데이터 편집</button>
+</nav>
+
+<main>
+
+  <!-- ===================== TAB: BUILD ===================== -->
+  <section class="panel active" id="panel-build">
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>수업 설정</h2>
+          <label>회원 프로필</label>
+          <select id="selProfile"></select>
+
+          <label>기구</label>
+          <select id="selEquipment">
+            <option value="barrel">래더 바렐</option>
+            <option value="cadillac">캐딜락</option>
+            <option value="chair" selected>체어</option>
+            <option value="reformer">리포머</option>
+            <option value="mat">매트</option>
+          </select>
+
+          <div class="row2">
+            <div>
+              <label>수업 시간(분)</label>
+              <input type="number" id="inpMinutes" value="60" min="10" max="120" step="5">
+            </div>
+            <div>
+              <label>유산소 시간</label>
+              <select id="inpCardioMinutes">
+                <option value="3">3분</option>
+                <option value="4">4분</option>
+                <option value="5" selected>5분</option>
+              </select>
+            </div>
+          </div>
+
+          <label>메인 집중 부위</label>
+          <select id="selMainFocus">
+            <option value="hip">힙</option>
+            <option value="lower">하체</option>
+            <option value="upper">상체</option>
+            <option value="core">코어</option>
+            <option value="full" selected>전신</option>
+          </select>
+
+          <button class="primary" id="btnGenerate">시퀀스 생성</button>
+          <div class="hint" id="cautionHint"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="seq-header">
+            <h2 style="margin:0;">생성된 시퀀스</h2>
+            <div class="meta" id="seqMeta">아직 생성된 시퀀스가 없어요</div>
+          </div>
+
+          <div class="addbox no-print">
+            <select id="selAddExercise"></select>
+            <button class="ghost" id="btnAddExercise">추가</button>
+          </div>
+
+          <div id="seqContainer" style="margin-top:14px;">
+            <div class="empty">왼쪽에서 회원과 기구를 선택하고 "시퀀스 생성"을 눌러주세요.</div>
+          </div>
+
+          <div class="totalbar" id="totalBar" style="display:none;">
+            <span>총 <strong id="totalCount">0</strong>개 동작</span>
+            <span>예상 소요시간 <strong id="totalTime">0분</strong></span>
+          </div>
+
+          <div class="no-print" style="margin-top:16px; display:flex; gap:8px;">
+            <button class="ghost" id="btnRegenerate">다시 생성</button>
+            <button class="ghost" id="btnSaveSeq">이 시퀀스 저장</button>
+            <button class="ghost" id="btnPrint">인쇄 / PDF</button>
+          </div>
+        </div>
+
+        <div class="card no-print" id="savedBox">
+          <h2>저장된 시퀀스 기록</h2>
+          <div id="savedList" class="empty">저장된 시퀀스가 없어요</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== TAB: MEMBERS ===================== -->
+  <section class="panel" id="panel-members">
+    <div class="grid">
+      <div class="card">
+        <h2>회원 목록</h2>
+        <ul class="profile-list" id="profileList"></ul>
+        <button class="ghost" id="btnNewProfile" style="margin-top:10px; width:100%;">+ 새 회원 추가</button>
+        <div class="hint">데이터는 이 브라우저(이 기기)에만 저장돼요. 다른 기기에서 쓰려면 아래 내보내기/불러오기를 이용하세요.</div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button class="ghost" id="btnExport" style="flex:1;">내보내기</button>
+          <button class="ghost" id="btnImport" style="flex:1;">불러오기</button>
+          <input type="file" id="fileImport" accept="application/json" style="display:none;">
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 id="profileFormTitle">새 회원</h2>
+        <label>이름</label>
+        <input type="text" id="pfName" placeholder="예: 김지현">
+
+        <label>레벨</label>
+        <select id="pfLevel">
+          <option value="beginner">초급</option>
+          <option value="intermediate" selected>중급</option>
+          <option value="advanced">고급</option>
+        </select>
+
+        <label>주의사항 / 부상 (쉼표로 구분)</label>
+        <input type="text" id="pfCautions" placeholder="예: 허리, 무릎">
+        <div class="hint">허리·목·어깨·무릎·손목 키워드가 들어가면 관련 위험 동작을 자동으로 제외해요.</div>
+
+        <label>집중하고 싶은 부위 / 목표</label>
+        <input type="text" id="pfFocus" placeholder="예: 코어, 골반 안정성">
+
+        <label>메모</label>
+        <textarea id="pfNotes" placeholder="자유롭게 메모"></textarea>
+
+        <div style="display:flex; gap:8px; margin-top:16px;">
+          <button class="primary" id="btnSaveProfile" style="margin-top:0;">저장</button>
+          <button class="ghost" id="btnDeleteProfile">삭제</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== TAB: EDIT DB ===================== -->
+  <section class="panel" id="panel-edit">
+    <div class="card">
+      <h2>동작 데이터 편집</h2>
+      <div class="banner">목차만으로는 정확히 읽기 어려운 스프링 세팅·난이도·제외 여부가 있어요. 여기서 직접 고쳐주세요 — 수정한 내용은 이 브라우저에 저장되고, 시퀀스 생성에 바로 반영돼요.</div>
+      <label style="margin-top:0;">기구</label>
+      <select id="editEquipment">
+        <option value="barrel">래더 바렐</option>
+        <option value="cadillac">캐딜락</option>
+        <option value="chair" selected>체어</option>
+        <option value="reformer">리포머</option>
+        <option value="mat">매트</option>
+      </select>
+      <div class="add-form">
+        <div class="wide">
+          <label>새 동작명</label>
+          <input type="text" id="newExerciseName" placeholder="예: Standing Hip Extension">
+        </div>
+        <div>
+          <label>카테고리</label>
+          <input type="text" id="newExerciseCategory" placeholder="예: Standing">
+        </div>
+        <div>
+          <label>집중 부위</label>
+          <select id="newExerciseFocus">
+            <option value="hip">힙</option>
+            <option value="lower">하체</option>
+            <option value="upper">상체</option>
+            <option value="core">코어</option>
+            <option value="full">전신</option>
+          </select>
+        </div>
+        <div>
+          <label>시간(초)</label>
+          <input type="number" id="newExerciseDuration" value="180" min="30" max="600" step="10">
+        </div>
+        <button class="ghost" id="btnCreateExercise">+ 동작 추가</button>
+      </div>
+      <div style="overflow-x:auto; margin-top:12px;">
+        <table class="editdb" id="editTable"></table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="data.js"></script>
+<script>
+/* ---------- storage helpers ---------- */
+const LS_PROFILES = 'pf_profiles_v1';
+const LS_OVERRIDES = 'pf_overrides_v1';
+const LS_SAVED = 'pf_saved_sequences_v1';
+const LS_CUSTOM = 'pf_custom_exercises_v1';
+
+function load(key, fallback){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e){ return fallback; }
+}
+function save(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+let profiles = load(LS_PROFILES, []);
+let overrides = load(LS_OVERRIDES, {});
+let savedSeqs = load(LS_SAVED, []);
+let customExercises = load(LS_CUSTOM, []);
+let selectedProfileId = null;
+let currentSequence = [];
+let currentEquipment = 'chair';
+
+/* ---------- exercise pool ---------- */
+function buildPool(equipKey){
+  const baseItems = EXERCISE_DB[equipKey].items.map((it, idx) => {
+    const id = equipKey + '-' + idx;
+    const base = {
+      id, equipment: equipKey,
+      name: it.name, category: it.category, page: it.page,
+      spring: it.spring || null,
+      variations: it.variations || [],
+      excluded: !!it.excluded,
+      level: it.level || 'all',
+      duration: it.duration || 180
+    };
+    return Object.assign(base, overrides[id] || {});
+  });
+  const customItems = customExercises
+    .filter(it => it.equipment === equipKey)
+    .map(it => Object.assign({
+      page: null,
+      spring: null,
+      variations: [],
+      excluded: false,
+      level: 'all',
+      duration: 180,
+      custom: true
+    }, it, overrides[it.id] || {}));
+  return baseItems.concat(customItems);
+}
+
+const CAUTION_RULES = [
+  { tag: '무릎', re: /lunge|step|kneeling|frog|squat|jump/i },
+  { tag: '어깨', re: /push-?up|handstand|plank|press|pull|swan|dip/i },
+  { tag: '허리', re: /roll down|roll up|jackknife|swan|rotation|hip circles|teaser|criss cross|reverse swan|side bend/i },
+  { tag: '목', re: /neck/i },
+  { tag: '손목', re: /push-?up|handstand|plank/i }
+];
+function riskTags(name){
+  return CAUTION_RULES.filter(r => r.re.test(name)).map(r => r.tag);
+}
+function avoidSetFromCautions(cautions){
+  const set = new Set();
+  (cautions || []).forEach(c => {
+    CAUTION_RULES.forEach(r => { if (c.includes(r.tag)) set.add(r.tag); });
+  });
+  return set;
+}
+
+function shuffle(arr){
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const PHASE_LABELS = {
+  stretch: '1. 서서 스트레칭 · 5분',
+  cardio: '2. 유산소 · 3~5분',
+  abs: '3. 매트 복부 · 최대 5분',
+  main: '4. 기구 메인',
+  cooldown: '5. 쿨다운 · 5분'
+};
+
+const STANDING_STRETCHES = [
+  { id:'common-neck-shoulder', name:'서서 목·어깨 스트레칭', category:'공통 스트레칭', duration:90 },
+  { id:'common-side', name:'서서 옆구리·흉추 회전 스트레칭', category:'공통 스트레칭', duration:90 },
+  { id:'common-lower', name:'서서 햄스트링·고관절 스트레칭', category:'공통 스트레칭', duration:120 }
+];
+
+const CARDIO_ROUTINES = [
+  { id:'cardio-box-step', name:'박스 스텝업 + 니킥 인터벌', category:'박스 유산소', risk:['무릎'] },
+  { id:'cardio-bosu-step', name:'보수 스텝업 + 빠르게 걷기', category:'보수 유산소', risk:['무릎'] },
+  { id:'cardio-walk-knee', name:'빠르게 걷기 + 니킥', category:'저충격 유산소', risk:[] },
+  { id:'cardio-step-lunge', name:'박스 스텝업 + 런지 콤비네이션', category:'박스 유산소', risk:['무릎'] }
+];
+
+const COOLDOWNS = [
+  { id:'cooldown-full', name:'전신 이완 스트레칭', category:'쿨다운', duration:180 },
+  { id:'cooldown-breath', name:'호흡 정리', category:'쿨다운', duration:120 }
+];
+
+function withPhase(items, phase){
+  return items.map(item => Object.assign({}, item, {phase, equipment:item.equipment || 'common'}));
+}
+
+function focusTags(ex){
+  if (ex.focus) return Array.isArray(ex.focus) ? ex.focus : [ex.focus];
+  const text = `${ex.name} ${ex.category}`.toLowerCase();
+  const tags = [];
+  if (/hip|glute|buttock|bridge|pelvic|clam|abduction|adduction|splits/.test(text)) tags.push('hip');
+  if (/leg|foot|feet|knee|thigh|hamstring|achilles|lunge|frog|jump|elephant|quadriceps/.test(text)) tags.push('lower');
+  if (/arm|shoulder|scap|chest|triceps|biceps|rowing|pull|press|hand|lat\.|breast stroke/.test(text)) tags.push('upper');
+  if (/abdominal|core|hundred|teaser|roll|stomach|coordination|pike|jackknife|side bend/.test(text)) tags.push('core');
+  return tags.length ? [...new Set(tags)] : ['full'];
+}
+
+function difficultyScore(ex){
+  const text = `${ex.name} ${ex.category}`.toLowerCase();
+  if (/advanced|handstand|jackknife|teaser|control|snake|star|tendon stretch|pull pike|knees off|arabesque/.test(text)) return 3;
+  if (/jump|single leg|long stretch|up stretch|swan|lunge|side bend|climb/.test(text)) return 2;
+  return 1;
+}
+
+function takeRandom(arr, count){
+  return shuffle(arr).slice(0, Math.max(0, count));
+}
+
+function buildMainBlock(candidates, focus, budgetSeconds){
+  const targetCount = Math.max(1, Math.round(budgetSeconds / 180));
+  const matching = focus === 'full' ? candidates : candidates.filter(ex => focusTags(ex).includes(focus));
+  const preferredCount = focus === 'full' ? targetCount : Math.min(targetCount, Math.ceil(targetCount * 0.7));
+  const picked = takeRandom(matching, preferredCount);
+  const pickedIds = new Set(picked.map(ex => ex.id));
+  const rest = takeRandom(candidates.filter(ex => !pickedIds.has(ex.id)), targetCount - picked.length);
+  const selected = picked.concat(rest).sort((a, b) => difficultyScore(a) - difficultyScore(b));
+  if (!selected.length) return [];
+
+  const baseDuration = Math.floor(budgetSeconds / selected.length);
+  let remainder = budgetSeconds - (baseDuration * selected.length);
+  return selected.map(ex => {
+    const extra = remainder > 0 ? 1 : 0;
+    remainder -= extra;
+    return Object.assign({}, ex, {duration:baseDuration + extra, phase:'main'});
+  });
+}
+
+function generateSequence(equipKey, profile, minutes, cardioMinutes, mainFocus){
+  const pool = buildPool(equipKey).filter(e => !e.excluded);
+  const avoid = profile ? avoidSetFromCautions(profile.cautions) : new Set();
+  let candidates = pool.filter(e => !riskTags(e.name).some(t => avoid.has(t)));
+  if (profile && profile.level === 'beginner') candidates = candidates.filter(e => difficultyScore(e) < 3);
+  if (candidates.length < 6) candidates = pool.filter(e => difficultyScore(e) < 3);
+
+  const totalSeconds = Math.max(25, minutes) * 60;
+  const cardioSeconds = Math.min(5, Math.max(3, cardioMinutes || 5)) * 60;
+  const stretchSeconds = 5 * 60;
+  const absSeconds = 5 * 60;
+  const cooldownSeconds = 5 * 60;
+  const mainSeconds = Math.max(5 * 60, totalSeconds - stretchSeconds - cardioSeconds - absSeconds - cooldownSeconds);
+
+  const cardioPool = CARDIO_ROUTINES.filter(c => !(c.risk || []).some(tag => avoid.has(tag)));
+  const cardio = Object.assign({}, shuffle(cardioPool.length ? cardioPool : CARDIO_ROUTINES)[0], {duration:cardioSeconds});
+
+  const absPool = buildPool('mat').filter(e => !e.excluded && /abdominal|core|hundred|chest lift/i.test(`${e.category} ${e.name}`));
+  const selectedAbs = takeRandom(absPool.filter(e => !riskTags(e.name).some(t => avoid.has(t))), 2);
+  const abs = selectedAbs.map((ex, i) => Object.assign({}, ex, {duration:i === 0 ? 150 : 150, phase:'abs'}));
+
+  const items = []
+    .concat(withPhase(STANDING_STRETCHES, 'stretch'))
+    .concat(withPhase([cardio], 'cardio'))
+    .concat(abs)
+    .concat(buildMainBlock(candidates, mainFocus || 'full', mainSeconds))
+    .concat(withPhase(COOLDOWNS, 'cooldown'));
+  return { items, totalSeconds:items.reduce((sum, item) => sum + item.duration, 0) };
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'edit') renderEditTable();
+    if (btn.dataset.tab === 'members') renderProfileList();
+  });
+});
+
+/* ---------- profiles ---------- */
+function renderProfileSelect(){
+  const sel = document.getElementById('selProfile');
+  sel.innerHTML = '<option value="">(선택 안 함 — 제한 없이 생성)</option>' +
+    profiles.map(p => `<option value="${p.id}">${escapeHtml(p.name)} (${levelLabel(p.level)})</option>`).join('');
+}
+function levelLabel(l){
+  return l === 'beginner' ? '초급' : l === 'advanced' ? '고급' : '중급';
+}
+function escapeHtml(s){
+  return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function renderProfileList(){
+  const ul = document.getElementById('profileList');
+  if (!profiles.length){ ul.innerHTML = '<li class="empty" style="cursor:default;">등록된 회원이 없어요</li>'; return; }
+  ul.innerHTML = profiles.map(p => `
+    <li data-id="${p.id}" class="${p.id === selectedProfileId ? 'selected' : ''}">
+      <span>${escapeHtml(p.name)}</span>
+      <span class="sub" style="font-size:12px; color:var(--ink-soft);">${levelLabel(p.level)}</span>
+    </li>`).join('');
+  ul.querySelectorAll('li[data-id]').forEach(li => {
+    li.addEventListener('click', () => { selectedProfileId = li.dataset.id; fillProfileForm(); renderProfileList(); });
+  });
+}
+function fillProfileForm(){
+  const p = profiles.find(p => p.id === selectedProfileId);
+  document.getElementById('profileFormTitle').textContent = p ? '회원 수정 — ' + p.name : '새 회원';
+  document.getElementById('pfName').value = p ? p.name : '';
+  document.getElementById('pfLevel').value = p ? p.level : 'intermediate';
+  document.getElementById('pfCautions').value = p ? (p.cautions || []).join(', ') : '';
+  document.getElementById('pfFocus').value = p ? (p.focus || '') : '';
+  document.getElementById('pfNotes').value = p ? (p.notes || '') : '';
+}
+document.getElementById('btnNewProfile').addEventListener('click', () => {
+  selectedProfileId = null; fillProfileForm(); renderProfileList();
+});
+document.getElementById('btnSaveProfile').addEventListener('click', () => {
+  const name = document.getElementById('pfName').value.trim();
+  if (!name){ alert('이름을 입력해주세요'); return; }
+  const data = {
+    name,
+    level: document.getElementById('pfLevel').value,
+    cautions: document.getElementById('pfCautions').value.split(',').map(s => s.trim()).filter(Boolean),
+    focus: document.getElementById('pfFocus').value.trim(),
+    notes: document.getElementById('pfNotes').value.trim()
+  };
+  if (selectedProfileId){
+    const p = profiles.find(p => p.id === selectedProfileId);
+    Object.assign(p, data);
+  } else {
+    const id = 'm_' + Date.now();
+    profiles.push(Object.assign({id}, data));
+    selectedProfileId = id;
+  }
+  save(LS_PROFILES, profiles);
+  renderProfileList(); renderProfileSelect();
+});
+document.getElementById('btnDeleteProfile').addEventListener('click', () => {
+  if (!selectedProfileId) return;
+  if (!confirm('이 회원을 삭제할까요?')) return;
+  profiles = profiles.filter(p => p.id !== selectedProfileId);
+  selectedProfileId = null;
+  save(LS_PROFILES, profiles);
+  fillProfileForm(); renderProfileList(); renderProfileSelect();
+});
+
+/* ---------- export / import ---------- */
+document.getElementById('btnExport').addEventListener('click', () => {
+  const payload = { profiles, overrides, savedSeqs, customExercises, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pilates-sequencer-backup.json';
+  a.click();
+});
+document.getElementById('btnImport').addEventListener('click', () => document.getElementById('fileImport').click());
+document.getElementById('fileImport').addEventListener('change', (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const data = JSON.parse(reader.result);
+      if (!confirm('현재 브라우저의 회원/시퀀스 데이터를 불러온 파일로 덮어쓸까요?')) return;
+      profiles = data.profiles || [];
+      overrides = data.overrides || {};
+      savedSeqs = data.savedSeqs || [];
+      customExercises = data.customExercises || [];
+      save(LS_PROFILES, profiles); save(LS_OVERRIDES, overrides); save(LS_SAVED, savedSeqs); save(LS_CUSTOM, customExercises);
+      renderProfileList(); renderProfileSelect(); renderSavedList(); updateDbInfo();
+      alert('불러왔어요');
+    }catch(err){ alert('파일을 읽을 수 없어요'); }
+  };
+  reader.readAsText(file);
+});
+
+/* ---------- sequence build tab ---------- */
+function fmtMin(sec){
+  const m = Math.round(sec / 60);
+  return m + '분';
+}
+function renderSequence(){
+  const container = document.getElementById('seqContainer');
+  const totalBar = document.getElementById('totalBar');
+  if (!currentSequence.length){
+    container.innerHTML = '<div class="empty">왼쪽에서 회원과 기구를 선택하고 "시퀀스 생성"을 눌러주세요.</div>';
+    totalBar.style.display = 'none';
+    document.getElementById('seqMeta').textContent = '아직 생성된 시퀀스가 없어요';
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  let currentPhase = null;
+  let ol = null;
+  currentSequence.forEach((ex, i) => {
+    const phase = ex.phase || 'main';
+    if (phase !== currentPhase){
+      const title = document.createElement('div');
+      title.className = 'phase-title';
+      title.textContent = PHASE_LABELS[phase] || PHASE_LABELS.main;
+      fragment.appendChild(title);
+      ol = document.createElement('ol');
+      ol.className = 'sequence';
+      fragment.appendChild(ol);
+      currentPhase = phase;
+    }
+    const li = document.createElement('li');
+    const source = ex.page ? ` · p.${ex.page}` : '';
+    li.innerHTML = `
+      <div class="num">${i+1}</div>
+      <div class="body">
+        <div class="name">${escapeHtml(ex.name)}</div>
+        <div class="cat">${escapeHtml(ex.category)}${source} · 약 ${Math.round(ex.duration/60)}분
+          ${ex.spring ? `<span class="tag spring">스프링 ${escapeHtml(ex.spring)}</span>` : ''}
+        </div>
+        ${ex.variations && ex.variations.length ? `<div class="var">변형: ${ex.variations.map(escapeHtml).join(', ')}</div>` : ''}
+      </div>
+      <div class="ctrls no-print">
+        <button class="small" data-act="up" data-i="${i}">↑</button>
+        <button class="small" data-act="down" data-i="${i}">↓</button>
+        <button class="small" data-act="del" data-i="${i}">삭제</button>
+      </div>`;
+    ol.appendChild(li);
+  });
+  container.innerHTML = '';
+  container.appendChild(fragment);
+  container.querySelectorAll('button[data-act]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.i, 10);
+      const act = btn.dataset.act;
+      if (act === 'del') currentSequence.splice(i, 1);
+      if (act === 'up' && i > 0) [currentSequence[i-1], currentSequence[i]] = [currentSequence[i], currentSequence[i-1]];
+      if (act === 'down' && i < currentSequence.length - 1) [currentSequence[i+1], currentSequence[i]] = [currentSequence[i], currentSequence[i+1]];
+      renderSequence();
+    });
+  });
+  const total = currentSequence.reduce((s, e) => s + e.duration, 0);
+  document.getElementById('totalCount').textContent = currentSequence.length;
+  document.getElementById('totalTime').textContent = fmtMin(total);
+  totalBar.style.display = 'flex';
+  const p = profiles.find(p => p.id === selectedProfileId);
+  document.getElementById('seqMeta').textContent = p ? `${p.name} · ${EXERCISE_DB[currentEquipment].label}` : EXERCISE_DB[currentEquipment].label;
+}
+
+function refreshAddExerciseSelect(){
+  const sel = document.getElementById('selAddExercise');
+  const pool = buildPool(currentEquipment).filter(e => !e.excluded);
+  sel.innerHTML = pool.map(e => `<option value="${e.id}">${escapeHtml(e.name)}${e.page ? ` (p.${e.page})` : ' (직접 추가)'}</option>`).join('');
+}
+
+document.getElementById('selEquipment').addEventListener('change', (e) => {
+  currentEquipment = e.target.value;
+  refreshAddExerciseSelect();
+});
+
+document.getElementById('btnGenerate').addEventListener('click', doGenerate);
+document.getElementById('btnRegenerate').addEventListener('click', doGenerate);
+
+function doGenerate(){
+  currentEquipment = document.getElementById('selEquipment').value;
+  const profile = profiles.find(p => p.id === document.getElementById('selProfile').value) || null;
+  selectedProfileId = profile ? profile.id : null;
+  const minutes = parseInt(document.getElementById('inpMinutes').value, 10) || 60;
+  const cardioMinutes = parseInt(document.getElementById('inpCardioMinutes').value, 10) || 5;
+  const mainFocus = document.getElementById('selMainFocus').value;
+  const result = generateSequence(currentEquipment, profile, minutes, cardioMinutes, mainFocus);
+  currentSequence = result.items;
+  refreshAddExerciseSelect();
+  renderSequence();
+  const hint = document.getElementById('cautionHint');
+  hint.textContent = profile && profile.cautions && profile.cautions.length
+    ? `주의사항(${profile.cautions.join(', ')}) 관련 동작은 자동으로 피했어요. 그래도 꼭 한 번 확인해주세요.`
+    : '';
+}
+
+document.getElementById('btnAddExercise').addEventListener('click', () => {
+  const id = document.getElementById('selAddExercise').value;
+  const ex = buildPool(currentEquipment).find(e => e.id === id);
+  if (ex) currentSequence.push(Object.assign({}, ex, {phase:'main'}));
+  renderSequence();
+});
+
+document.getElementById('btnPrint').addEventListener('click', () => window.print());
+
+document.getElementById('btnSaveSeq').addEventListener('click', () => {
+  if (!currentSequence.length){ alert('저장할 시퀀스가 없어요'); return; }
+  const profile = profiles.find(p => p.id === selectedProfileId);
+  savedSeqs.unshift({
+    id: 'sq_' + Date.now(),
+    date: new Date().toISOString(),
+    profileName: profile ? profile.name : '(미지정)',
+    equipment: currentEquipment,
+    items: currentSequence
+  });
+  save(LS_SAVED, savedSeqs);
+  renderSavedList();
+  alert('저장했어요');
+});
+
+function renderSavedList(){
+  const box = document.getElementById('savedList');
+  if (!savedSeqs.length){ box.innerHTML = '<div class="empty">저장된 시퀀스가 없어요</div>'; return; }
+  box.innerHTML = savedSeqs.slice(0, 15).map(s => {
+    const d = new Date(s.date);
+    return `<div style="padding:8px 0; border-bottom:1px solid var(--line); font-size:13px;">
+      <strong>${escapeHtml(s.profileName)}</strong> · ${EXERCISE_DB[s.equipment].label} · ${s.items.length}개 동작
+      <div style="color:var(--ink-soft); font-size:12px;">${d.toLocaleDateString('ko-KR')} ${d.toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- edit db tab ---------- */
+document.getElementById('editEquipment').addEventListener('change', renderEditTable);
+document.getElementById('btnCreateExercise').addEventListener('click', () => {
+  const equipment = document.getElementById('editEquipment').value;
+  const name = document.getElementById('newExerciseName').value.trim();
+  if (!name){ alert('새 동작명을 입력해주세요'); return; }
+  const category = document.getElementById('newExerciseCategory').value.trim() || '직접 추가';
+  const focus = document.getElementById('newExerciseFocus').value;
+  const duration = parseInt(document.getElementById('newExerciseDuration').value, 10) || 180;
+  customExercises.push({
+    id:'custom-' + Date.now(),
+    equipment,
+    name,
+    category,
+    focus:[focus],
+    duration,
+    page:null,
+    variations:[],
+    custom:true
+  });
+  save(LS_CUSTOM, customExercises);
+  document.getElementById('newExerciseName').value = '';
+  document.getElementById('newExerciseCategory').value = '';
+  renderEditTable();
+  refreshAddExerciseSelect();
+  updateDbInfo();
+});
+
+function renderEditTable(){
+  const equipKey = document.getElementById('editEquipment').value;
+  const pool = buildPool(equipKey);
+  const table = document.getElementById('editTable');
+  table.innerHTML = `
+    <tr>
+      <th>동작명</th><th>카테고리</th><th>p.</th><th>스프링</th><th>시간(초)</th><th>제외</th><th></th>
+    </tr>` +
+    pool.map(e => `
+      <tr class="${e.excluded ? 'excluded' : ''}" data-id="${e.id}">
+        <td>${escapeHtml(e.name)}</td>
+        <td>${escapeHtml(e.category)}</td>
+        <td>${e.page || '-'}</td>
+        <td><input type="text" value="${escapeHtml(e.spring || '')}" data-field="spring" style="width:90px;"></td>
+        <td><input type="number" value="${e.duration}" data-field="duration" style="width:70px;"></td>
+        <td><input type="checkbox" data-field="excluded" ${e.excluded ? 'checked' : ''}></td>
+        <td>${e.custom ? '<button class="small" data-delete-custom="true">삭제</button>' : ''}</td>
+      </tr>`).join('');
+  table.querySelectorAll('tr[data-id]').forEach(tr => {
+    const id = tr.dataset.id;
+    tr.querySelectorAll('[data-field]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        const field = inp.dataset.field;
+        let val = field === 'excluded' ? inp.checked : (field === 'duration' ? parseInt(inp.value,10)||180 : inp.value);
+        overrides[id] = Object.assign({}, overrides[id], {[field]: val});
+        save(LS_OVERRIDES, overrides);
+        renderEditTable();
+      });
+    });
+    const deleteButton = tr.querySelector('[data-delete-custom]');
+    if (deleteButton){
+      deleteButton.addEventListener('click', () => {
+        if (!confirm('직접 추가한 이 동작을 삭제할까요?')) return;
+        customExercises = customExercises.filter(e => e.id !== id);
+        delete overrides[id];
+        save(LS_CUSTOM, customExercises);
+        save(LS_OVERRIDES, overrides);
+        renderEditTable();
+        refreshAddExerciseSelect();
+        updateDbInfo();
+      });
+    }
+  });
+}
+
+/* ---------- init ---------- */
+function updateDbInfo(){
+  const counts = Object.keys(EXERCISE_DB).map(k => `${EXERCISE_DB[k].label} ${buildPool(k).length}개`).join(' · ');
+  document.getElementById('dbInfo').textContent = counts;
+}
+
+function init(){
+  renderProfileSelect();
+  renderProfileList();
+  fillProfileForm();
+  renderSavedList();
+  refreshAddExerciseSelect();
+  updateDbInfo();
+}
+init();
+</script>
+</body>
+</html>
