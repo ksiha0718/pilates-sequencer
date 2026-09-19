@@ -568,8 +568,6 @@ import {
   setPersistence,
   browserLocalPersistence,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signOut
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import {
@@ -742,23 +740,27 @@ async function loginWithGoogle(){
   try{
     await setPersistence(auth, browserLocalPersistence);
     googleProvider.setCustomParameters({prompt:'select_account'});
-    const isMobile = /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) await signInWithRedirect(auth, googleProvider);
-    else await signInWithPopup(auth, googleProvider);
+    // GitHub Pages에서는 모바일 리디렉션 인증이 브라우저의 서드파티
+    // 저장소 차단에 걸릴 수 있으므로 모든 기기에서 팝업 인증을 사용합니다.
+    await signInWithPopup(auth, googleProvider);
   }catch(error){
     console.error('Google sign-in failed', error);
-    alert('Google 로그인에 실패했어요. Firebase의 Google 로그인 설정과 승인된 도메인을 확인해주세요.');
+    if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') return;
+    if (error.code === 'auth/popup-blocked'){
+      alert('로그인 창이 차단됐어요. 브라우저에서 팝업을 허용한 뒤 다시 눌러주세요.');
+      return;
+    }
+    if (error.code === 'auth/unauthorized-domain'){
+      alert('현재 주소가 Firebase 승인된 도메인에 등록되지 않았어요. Firebase Authentication 설정을 확인해주세요.');
+      return;
+    }
+    alert('Google 로그인에 실패했어요. 카카오톡·인스타그램 안의 브라우저라면 Safari 또는 Chrome에서 링크를 열어주세요.');
   }
 }
 
 document.getElementById('btnLogin').addEventListener('click', loginWithGoogle);
 document.getElementById('btnGateLogin').addEventListener('click', loginWithGoogle);
 document.getElementById('btnLogout').addEventListener('click', () => signOut(auth));
-
-getRedirectResult(auth).catch(error => {
-  console.error('Google redirect result failed', error);
-  setSyncStatus('Google 로그인 처리 실패', true);
-});
 
 onAuthStateChanged(auth, async user => {
   currentUser = user;
